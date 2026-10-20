@@ -1252,13 +1252,15 @@ pub async fn serve() -> anyhow::Result<()> {
                         // explains a log which suddenly starts again from
                         // "Listening on". Written once, not once a cycle.
                         music_engine::yue_server::note_in_log("the engine stopped answering; restarting it");
-                        // Under Auto a device that died of its own fault is
-                        // not tried again: the restart moves down the chain.
+                        // A device is only left for the session when the log
+                        // names a device failure. A silent exit - OOM, SIGKILL,
+                        // a startup timeout - is not evidence of a device fault,
+                        // and another device would not cure any of them.
                         let auto = state.engine_options.read().await.backend == music_engine::yue_server::ComputeBackend::Auto;
                         let active = *state.active_device.read().await;
                         if let Some(device) = active.filter(|device| auto && *device != music_engine::yue_server::ComputeBackend::Cpu) {
                             let log = last_run_log().to_lowercase();
-                            if describes_device_failure(&log) || died_silently(&log) {
+                            if describes_device_failure(&log) {
                                 music_engine::yue_server::note_in_log(&format!("{} failed on this machine; leaving it for this session", device_name(device)));
                                 state.failed_devices.write().await.push(device);
                             }
